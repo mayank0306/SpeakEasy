@@ -113,6 +113,44 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
         }, 0);
         console.log(`Filler words found: ${fillerWordCount}`);
 
+        // Suggestions Engine
+        // Pacing suggestions based on words per minute
+        let pacingSuggestion;
+        if (wordsPerMinute > 160) {
+            pacingSuggestion = "Your pace is quite fast. Try speaking a bit more slowly to ensure your audience can follow along.";
+        } else if (wordsPerMinute < 130) {
+            pacingSuggestion = "Your pace is a little slow. Try speaking a bit faster to keep your audience engaged.";
+        } else {
+            pacingSuggestion = "Your pacing is excellent! It's right in the ideal range for presentations.";
+        }
+
+        // Long pause detection using word-level timestamps from AssemblyAI (if available)
+        let longPauseCount = 0;
+        const wordsWithTimestamps = Array.isArray(transcriptData.words) ? transcriptData.words : [];
+        for (let i = 1; i < wordsWithTimestamps.length; i++) {
+            const previousWord = wordsWithTimestamps[i - 1];
+            const currentWord = wordsWithTimestamps[i];
+            const prevEnd = typeof previousWord?.end === 'number' ? previousWord.end : null;
+            const currStart = typeof currentWord?.start === 'number' ? currentWord.start : null;
+            if (prevEnd !== null && currStart !== null) {
+                let diff = currStart - prevEnd; // AssemblyAI provides ms; normalize to seconds if needed
+                const pauseSeconds = diff > 100 ? diff / 1000 : diff;
+                if (pauseSeconds > 2.0) {
+                    longPauseCount++;
+                }
+            }
+        }
+
+        // Pause & filler word suggestions
+        let pauseSuggestion;
+        if (longPauseCount > 3) {
+            pauseSuggestion = `You paused for over 2 seconds ${longPauseCount} times. Try to make your transitions between sentences smoother.`;
+        } else if (fillerWordCount > 5) {
+            pauseSuggestion = `You used ${fillerWordCount} filler words. Practice your speech to reduce reliance on words like 'um' and 'like'.`;
+        } else {
+            pauseSuggestion = "Great job on maintaining a smooth flow with minimal long pauses!";
+        }
+
         // Send the final analysis back to the client
         console.log("Analysis complete! Sending results to client...");
         res.json({
@@ -120,6 +158,10 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
             transcript: transcriptText,
             wordsPerMinute,
             fillerWordCount,
+            suggestions: {
+                pacing: pacingSuggestion,
+                pauses: pauseSuggestion,
+            },
         });
 
     } catch (error) {
