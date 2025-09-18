@@ -14,76 +14,147 @@ app.use(cors());
 app.use(express.json());
 
 // AssemblyAI API Configuration
-// We remove the global content-type header here
+const apiKey = process.env.ASSEMBLYAI_API_KEY?.trim();
+if (!apiKey) {
+    console.error('ASSEMBLYAI_API_KEY is not set or empty');
+    process.exit(1);
+}
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        apiKey: apiKey ? 'Set' : 'Not set'
+    });
+});
+
 const assemblyai = axios.create({
     baseURL: 'https://api.assemblyai.com/v2',
     headers: {
-        authorization: process.env.ASSEMBLYAI_API_KEY,
+        authorization: apiKey,
     },
 });
 
 app.post('/api/analyze', upload.single('audio'), async (req, res) => {
-    console.log("Running the LATEST version of the code!"); // <-- ADD THIS LINE
+    console.log("=== Speech Analysis Request Started ===");
+    console.log("Request received at:", new Date().toISOString());
 
     if (!req.file) {
+        console.error("No file uploaded in request");
         return res.status(400).json({ error: 'No file uploaded.' });
     }
 
     const filePath = req.file.path;
+    console.log("File uploaded:", req.file.originalname, "Size:", req.file.size, "bytes");
 
     try {
         // Step 1: Upload the local file to AssemblyAI.
-        // Axios will correctly set the content-type for a file stream.
+        console.log("Step 1: Uploading file to AssemblyAI...");
         const uploadResponse = await assemblyai.post('/upload', fs.readFileSync(filePath));
         const uploadUrl = uploadResponse.data.upload_url;
+        console.log("File uploaded successfully. URL:", uploadUrl);
 
         // Step 2: Request the transcription, explicitly setting the content-type to JSON.
+        console.log("Step 2: Requesting transcription...");
         const transcriptResponse = await assemblyai.post('/transcript', {
-            audio_url: uploadUrl,
-            word_details: true,
+            audio_url: uploadUrl
         }, { headers: { 'content-type': 'application/json' } });
         const transcriptId = transcriptResponse.data.id;
+        console.log("Transcription requested. ID:", transcriptId);
 
         // Step 3: Poll for the transcription to complete
+        console.log("Step 3: Polling for transcription completion...");
         let transcriptData;
-        while (true) {
+        let pollCount = 0;
+        const maxPolls = 20; // Maximum 60 seconds (20 * 3 seconds)
+        
+        while (pollCount < maxPolls) {
             const pollResponse = await assemblyai.get(`/transcript/${transcriptId}`);
             transcriptData = pollResponse.data;
+            console.log(`Poll ${pollCount + 1}: Status = ${transcriptData.status}`);
+            
             if (transcriptData.status === 'completed') {
+                console.log("Transcription completed successfully!");
                 break;
             } else if (transcriptData.status === 'error') {
+                console.error("Transcription failed:", transcriptData.error);
                 throw new Error(`Transcription failed: ${transcriptData.error}`);
             }
+            
+            pollCount++;
             await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
+        
+        if (pollCount >= maxPolls) {
+            throw new Error('Transcription timed out after 60 seconds');
         }
 
         // Step 4: Perform our custom analysis
-        const words = transcriptData.words || [];
+        console.log("Step 4: Performing speech analysis...");
+        const transcriptText = transcriptData.text || '';
         const audioDuration = transcriptData.audio_duration / 60; // in minutes
+        console.log(`Audio duration: ${audioDuration.toFixed(2)} minutes`);
 
-        // Pacing analysis
+        // Pacing analysis - count words from transcript text
+        const words = transcriptText.split(/\s+/).filter(word => word.length > 0);
         const wordCount = words.length;
+        console.log(`Total words: ${wordCount}`);
         // Safety check to prevent division by zero for very short audio
         const wordsPerMinute = audioDuration > 0 ? Math.round(wordCount / audioDuration) : 0;
+        console.log(`Words per minute: ${wordsPerMinute}`);
 
-        // Filler word analysis
+        // Filler word analysis - search in transcript text
         const fillerWordsList = ['um', 'uh', 'like', 'so', 'you know', 'actually', 'basically', 'ahh','ummmm','uhhhh'];
-        const fillerWordCount = words.filter(word => fillerWordsList.includes(word.text.toLowerCase())).length;
+        const fillerWordCount = fillerWordsList.reduce((count, filler) => {
+            const regex = new RegExp(`\\b${filler}\\b`, 'gi');
+            const matches = transcriptText.match(regex);
+            return count + (matches ? matches.length : 0);
+        }, 0);
+        console.log(`Filler words found: ${fillerWordCount}`);
 
         // Send the final analysis back to the client
+        console.log("Analysis complete! Sending results to client...");
         res.json({
             message: 'Analysis complete!',
-            transcript: transcriptData.text,
+            transcript: transcriptText,
             wordsPerMinute,
             fillerWordCount,
         });
 
     } catch (error) {
-        console.error('Error during analysis:', error.response ? error.response.data : error.message);
-        res.status(500).json({ error: 'An error occurred during analysis.' });
+        console.error('=== ERROR DURING ANALYSIS ===');
+        console.error('Error message:', error.message);
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        }
+        console.error('Stack trace:', error.stack);
+        
+        // Send more specific error message to client
+        let errorMessage = 'An error occurred during analysis.';
+        if (error.message.includes('Transcription failed')) {
+            errorMessage = 'Speech transcription failed. Please try again.';
+        } else if (error.message.includes('timed out')) {
+            errorMessage = 'Analysis timed out. Please try with a shorter recording.';
+        } else if (error.response?.status === 401) {
+            errorMessage = 'API authentication failed. Please check server configuration.';
+        }
+        
+        res.status(500).json({ 
+            error: errorMessage,
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     } finally {
         // Step 5: Clean up by deleting the temporary file
-        fs.unlinkSync(filePath);
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                console.log("Temporary file cleaned up successfully");
+            }
+        } catch (cleanupError) {
+            console.error("Error cleaning up temporary file:", cleanupError.message);
+        }
     }
 });
 
