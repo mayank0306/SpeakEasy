@@ -81,11 +81,17 @@ function App() {
       console.log('Sending audio to server...', 'Size:', audioBlob.size, 'bytes');
       setStatusText('Sending audio for analysis...');
       
-      // --- THIS IS THE LINE THAT HAS BEEN CHANGED ---
+      // Add a client-side timeout so the UI doesn't hang indefinitely
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+
       const response = await fetch('https://speakeasy-server-realtime.onrender.com/api/analyze', {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       console.log('Response status:', response.status);
       
@@ -104,7 +110,9 @@ function App() {
       console.error('Error sending audio to server:', error);
       let errorMessage = 'Error during analysis. Please try again.';
       
-      if (error.message.includes('Failed to fetch')) {
+      if (error.name === 'AbortError') {
+        errorMessage = 'Request timed out. Please try again with a shorter recording.';
+      } else if (error.message.includes('Failed to fetch')) {
         errorMessage = 'Cannot connect to server. Please make sure the server is running.';
       } else if (error.message.includes('API authentication failed')) {
         errorMessage = 'Server configuration error. Please contact support.';
@@ -210,6 +218,96 @@ function App() {
           )}
         </div>
       </div>
+      
+      <div className="card">
+        <div className="card-header">
+          <h2>Personalized Suggestions</h2>
+        </div>
+        <div className="card-body suggestions">
+          {analysisResult ? (
+            (() => {
+              const wpm = analysisResult.wordsPerMinute || 0;
+              let pacingStatus = 'Great';
+              let pacingBadge = 'badge-success';
+              let pacingTip = "Pacing looks great — you are good to go now!";
+              if (wpm > 160) {
+                pacingStatus = 'Too Fast';
+                pacingBadge = 'badge-danger';
+                pacingTip = 'Slow down your delivery, add brief pauses at clause boundaries, and emphasize key points.';
+              } else if (wpm < 140) {
+                pacingStatus = 'Too Slow';
+                pacingBadge = 'badge-warning';
+                pacingTip = 'Tighten phrasing, reduce unnecessary pauses, and keep sentences concise to lift energy.';
+              }
+
+              const minutes = Math.max(recordingTime, 1) / 60;
+              const fillerCount = analysisResult.fillerWordCount || 0;
+              const fillerPerMinute = minutes > 0 ? fillerCount / minutes : 0;
+              const fillerOverThreshold = fillerPerMinute > 2;
+              const fillerTip = fillerOverThreshold
+                ? 'Reduce utterances (um/uh/like). Breathe, think for a second, then speak.'
+                : 'Nice control of filler words. Keep practicing mindful pauses instead of fillers.';
+
+              const pacingPercent = Math.max(0, Math.min(100, ((wpm - 100) / (200 - 100)) * 100));
+
+              return (
+                <div className="suggestions-grid">
+                  <div className="suggestion-item">
+                    <div className="suggestion-header">
+                      <h3>Pacing</h3>
+                      <span className={`suggestion-badge ${pacingBadge}`}>{pacingStatus}</span>
+                    </div>
+                    <div className="pacing-meter">
+                      <div className="pacing-meter-track">
+                        <div className="pacing-meter-fill" style={{ width: `${pacingPercent}%` }}></div>
+                      </div>
+                      <div className="pacing-scale">
+                        <span>100</span>
+                        <span>140</span>
+                        <span>160</span>
+                        <span>200</span>
+                      </div>
+                      <div className="pacing-wpm">{wpm} WPM</div>
+                    </div>
+                    <div className="tip-box">
+                      <p>{pacingTip}</p>
+                    </div>
+                  </div>
+
+                  <div className="suggestion-item">
+                    <div className="suggestion-header">
+                      <h3>Filler Words</h3>
+                      <span className={`suggestion-badge ${fillerOverThreshold ? 'badge-warning' : 'badge-success'}`}>
+                        {fillerOverThreshold ? 'Needs Work' : 'Good'}
+                      </span>
+                    </div>
+                    <div className="filler-stats">
+                      <div className="filler-kpi">
+                        <div className="kpi-value">{fillerCount}</div>
+                        <div className="kpi-label">Total fillers</div>
+                      </div>
+                      <div className="filler-kpi">
+                        <div className="kpi-value">{fillerPerMinute.toFixed(1)}</div>
+                        <div className="kpi-label">per minute</div>
+                      </div>
+                      <div className="filler-kpi">
+                        <div className="kpi-value">2.0</div>
+                        <div className="kpi-label">target max</div>
+                      </div>
+                    </div>
+                    <div className="tip-box">
+                      <p>{fillerTip}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <p className="results-placeholder">Record a sample to get personalized suggestions.</p>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 }

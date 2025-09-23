@@ -51,7 +51,9 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
     try {
         // Step 1: Upload the local file to AssemblyAI.
         console.log("Step 1: Uploading file to AssemblyAI...");
-        const uploadResponse = await assemblyai.post('/upload', fs.readFileSync(filePath));
+        const uploadResponse = await assemblyai.post('/upload', fs.readFileSync(filePath), {
+            headers: { 'content-type': 'application/octet-stream' }
+        });
         const uploadUrl = uploadResponse.data.upload_url;
         console.log("File uploaded successfully. URL:", uploadUrl);
 
@@ -67,7 +69,7 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
         console.log("Step 3: Polling for transcription completion...");
         let transcriptData;
         let pollCount = 0;
-        const maxPolls = 20; // Maximum 60 seconds (20 * 3 seconds)
+        const maxPolls = 40; // Maximum ~80 seconds (40 * 2 seconds)
         
         while (pollCount < maxPolls) {
             const pollResponse = await assemblyai.get(`/transcript/${transcriptId}`);
@@ -83,7 +85,7 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
             }
             
             pollCount++;
-            await new Promise((resolve) => setTimeout(resolve, 3000));
+            await new Promise((resolve) => setTimeout(resolve, 2000));
         }
         
         if (pollCount >= maxPolls) {
