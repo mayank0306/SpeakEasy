@@ -1,6 +1,9 @@
 SpeakEasy 🎙️
 An AI-powered public speaking coach designed to help users improve their presentation skills through data-driven feedback. This project was built for a hackathon by the Kernel Crew team.
 
+Live Demo
+Check out the live version of the application here: https://speak-easy-zeta.vercel.app
+
 Key Features
 Real-Time Transcription: See your words appear on the screen live as you speak.
 
@@ -13,9 +16,9 @@ Long Pause Detection: Measures pauses between words to help you improve the flow
 Actionable AI Coach: Provides personalized suggestions based on your performance.
 
 Technology Stack
-Frontend: React.js
+Frontend: React.js (Hosted on Vercel)
 
-Backend: Node.js with Express.js (MVC Architecture)
+Backend: Node.js with Express.js (MVC Architecture, Hosted on Render)
 
 Real-Time & Analysis: AssemblyAI
 
@@ -76,4 +79,8 @@ Start the Frontend Application:
 In another terminal at the SpeakEasy/client directory, run:
 
 npm start
+
+The application will open automatically in your browser at http://localhost:3000.
+
+Project by Mayank Jaiswal, Tarun Chaudhary, Ramit Taparia, Sunidhi Mundra, and Raghvendra Verma.
 
