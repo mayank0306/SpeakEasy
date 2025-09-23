@@ -2,20 +2,22 @@ SpeakEasy 🎙️
 An AI-powered public speaking coach designed to help users improve their presentation skills through data-driven feedback. This project was built for a hackathon by the Kernel Crew team.
 
 Key Features
+Real-Time Transcription: See your words appear on the screen live as you speak.
+
 Pacing Analysis: Calculates your words-per-minute to help you maintain an ideal speaking speed.
 
 Filler Word Detection: Identifies and counts common filler words like "um," "uh," and "like" to increase fluency.
 
-Full Transcription: Provides a complete text transcript of your speech for review.
+Long Pause Detection: Measures pauses between words to help you improve the flow of your speech.
 
-Actionable Dashboard: Displays all your results in a simple, easy-to-understand interface.
+Actionable AI Coach: Provides personalized suggestions based on your performance.
 
 Technology Stack
 Frontend: React.js
 
-Backend: Node.js with Express.js
+Backend: Node.js with Express.js (MVC Architecture)
 
-AI / Speech-to-Text: AssemblyAI
+Real-Time & Analysis: AssemblyAI
 
 Database: MongoDB Atlas
 
@@ -30,7 +32,7 @@ Installation & Setup
 
 Clone the repository:
 
-git clone [https://github.com/mayank8306/SpeakEasy.git](https://github.com/mayank8306/SpeakEasy.git)
+git clone [https://github.com/mayank0306/SpeakEasy.git](https://github.com/mayank0306/SpeakEasy.git)
 
 Navigate to the project directory:
 
@@ -74,24 +76,4 @@ Start the Frontend Application:
 In another terminal at the SpeakEasy/client directory, run:
 
 npm start
-
-The application will open automatically in your browser at http://localhost:3000.
-
-Project by Mayank Jaiswal, Tarun Chaudhary, Ramit Taparia, Sunidhi Mundra, and Raghvendra Verma.
-
-
-### How to Add This to Your Project
-
-1.  In your `SpeakEasy` folder in VS Code, create a new file named `README.md`.
-2.  Copy and paste the content from the file above into your new `README.md` file.
-3.  Save the file.
-4.  In your terminal (inside the `SpeakEasy` folder), run these commands to upload it to GitHub:
-    ```bash
-    git add README.md
-    ```
-    ```bash
-    git commit -m "docs: Add project README file"
-    ```
-    ```bash
-    git push
 
